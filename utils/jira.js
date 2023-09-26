@@ -146,11 +146,11 @@ async function getFixVersions(issueId) {
     method: 'GET',
     headers: fetchHeader,
   })
-      .then((response) => {
-        core.info(response)
-        return response
-      })
-      .catch((err) => console.log(err))
+    .then((response) => {
+      core.info(response)
+      return response
+    })
+    .catch((err) => console.log(err))
 }
 
 /**
@@ -201,8 +201,8 @@ function createVersionAndUpdateFixVersions(changelog, version) {
           fixVersions.push({ name: version })
           let issueProperties = `{"update":{"fixVersions":[{"set":${JSON.stringify(fixVersions)}}]}}`
           console.log(
-              '\x1b[32m%s\x1b[0m',
-              `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
+            '\x1b[32m%s\x1b[0m',
+            `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
           )
           // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
           await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), { retries: 2 })
