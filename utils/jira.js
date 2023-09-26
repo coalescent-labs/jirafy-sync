@@ -1,4 +1,5 @@
 const JiraClient = require('jira-client')
+const pRetry = require('p-retry')
 const fetch = require('node-fetch')
 const core = require('@actions/core')
 const { parseChangelogForJiraTickets } = require('./jira-helper')
@@ -204,7 +205,7 @@ function createVersionAndUpdateFixVersions(changelog, version) {
               `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
           )
           // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
-          await setIssueProperties(ticket, JSON.parse(issueProperties))
+          await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), { retries: 2 })
         }
       }
     })
