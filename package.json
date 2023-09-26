@@ -1,6 +1,6 @@
 {
   "name": "jirafy-sync",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Sync Jira tickets and version based on a given changelog",
   "main": "dist/index.js",
   "scripts": {
