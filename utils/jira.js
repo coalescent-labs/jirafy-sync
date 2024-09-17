@@ -186,26 +186,30 @@ function createVersionAndUpdateFixVersions(changelog, version) {
         const json = await response.json()
         console.log('\x1b[32m%s\x1b[0m', `json: ${JSON.stringify(json)}`)
         // const json = await response.json()
-        const currentFixVersions = json.fields.fixVersions
-        let fixVersions = []
-        let versionExists = false
-        currentFixVersions.every((v) => {
-          if (v.name !== version) {
-            fixVersions.push({ name: v.name })
-          } else {
-            versionExists = true
+        if (json.fields && json.fields.fixVersions) {
+          const currentFixVersions = json.fields.fixVersions
+          let fixVersions = []
+          let versionExists = false
+          currentFixVersions.every((v) => {
+            if (v.name !== version) {
+              fixVersions.push({ name: v.name })
+            } else {
+              versionExists = true
+            }
+            return !versionExists
+          })
+          if (!versionExists) {
+            fixVersions.push({ name: version })
+            let issueProperties = `{"update":{"fixVersions":[{"set":${JSON.stringify(fixVersions)}}]}}`
+            console.log(
+              '\x1b[32m%s\x1b[0m',
+              `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
+            )
+            // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
+            await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), { retries: 2 })
           }
-          return !versionExists
-        })
-        if (!versionExists) {
-          fixVersions.push({ name: version })
-          let issueProperties = `{"update":{"fixVersions":[{"set":${JSON.stringify(fixVersions)}}]}}`
-          console.log(
-            '\x1b[32m%s\x1b[0m',
-            `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
-          )
-          // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
-          await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), { retries: 2 })
+        } else {
+          console.log('\x1b[32m%s\x1b[0m', `No fixVersions found for ticket: ${ticket}`)
         }
       }
     })
