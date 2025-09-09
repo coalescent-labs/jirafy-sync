@@ -2,10 +2,10 @@
 >
 > This is a fork of [onXmaps/jirafy-sync](https://github.com/onXmaps/jirafy-sync) with the following changes:
 >
-> * Upgrade action to Node 16
+> * Upgrade action to Node 20
 > * Upgrade some dependencies
-> * Full support semantic versioning
-> * Add Jira version to Fix Version without overwriting existing Fix Versions
+> * Full support for semantic versioning
+> * Add a Jira version to Fix Version without overwriting existing Fix Versions
 > * Retry failed Jira API calls
 
 [![Unit Tests](https://github.com/onXmaps/jirafy-sync/actions/workflows/tests.yml/badge.svg)](https://github.com/onXmaps/jirafy-sync/actions/workflows/tests.yml)
