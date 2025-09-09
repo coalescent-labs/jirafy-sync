@@ -10,17 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v5
 
-      # Generate changelog optimized for referenced Jira Tickets from Pull Request titles
       - name: Jirafy Changelog
         id: changelog
-        uses: onXmaps/jirafy-changelog@v1.2.0
+        uses: coalescent-labs/jirafy-changelog@v4
         with:
           jiraHost: ${{ secrets.JIRA_HOST }}
           myToken: ${{ secrets.GITHUB_TOKEN }}
 
-      # Create a release
       - name: Create Release
         id: create_release
         uses: actions/create-release@latest
@@ -34,9 +32,9 @@ jobs:
           prerelease: false
 
       - name: Setup node
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v5
         with:
-          node-version: '12'
+          node-version: '20'
 
       - run: npm install --production
 
