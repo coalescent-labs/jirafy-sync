@@ -2,28 +2,28 @@ const JiraClient = require('jira-client')
 const pRetry = require('p-retry')
 const fetch = require('node-fetch')
 const core = require('@actions/core')
-const { parseChangelogForJiraTickets } = require('./jira-helper')
-const { jiraHost, packageName, today, parseForWord, parseForVersion } = require('./jira-helper')
+const {parseChangelogForJiraTickets} = require('./jira-helper')
+const {jiraHost, packageName, today, parseForWord, parseForVersion} = require('./jira-helper')
 
 const options = {
-  username: process.env.JIRA_USERNAME || core.getInput('jiraUsername'),
-  token: process.env.JIRA_TOKEN || core.getInput('jiraToken'),
-  host: jiraHost,
+    username: process.env.JIRA_USERNAME || core.getInput('jiraUsername'),
+    token: process.env.JIRA_TOKEN || core.getInput('jiraToken'),
+    host: jiraHost,
 }
 
 const jira = new JiraClient({
-  protocol: 'https',
-  host: options.host,
-  username: options.username,
-  password: options.token,
-  apiVersion: '2',
-  strictSSL: false,
+    protocol: 'https',
+    host: options.host,
+    username: options.username,
+    password: options.token,
+    apiVersion: '2',
+    strictSSL: false,
 })
 
 const fetchHeader = {
-  Authorization: `Basic ${Buffer.from(`${options.username}:${options.token}`).toString('base64')}`,
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
+    Authorization: `Basic ${Buffer.from(`${options.username}:${options.token}`).toString('base64')}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
 }
 
 /**
@@ -32,10 +32,10 @@ const fetchHeader = {
  * @returns Object object response || error & status code
  */
 function getIssue(issueNumber) {
-  return jira
-    .findIssue(issueNumber)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+    return jira
+        .findIssue(issueNumber)
+        .then((response) => console.log(response))
+        .catch((err) => console.log(`${err}`))
 }
 
 /**
@@ -44,10 +44,10 @@ function getIssue(issueNumber) {
  * @returns {Object} object response || error & status code
  */
 function getVersion(version) {
-  return jira
-    .getVersion(version)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+    return jira
+        .getVersion(version)
+        .then((response) => console.log(response))
+        .catch((err) => console.log(`${err}`))
 }
 
 /**
@@ -56,10 +56,10 @@ function getVersion(version) {
  * @returns {Object} Object response || error & status code
  */
 function getVersions(project) {
-  return jira
-    .getVersions(project)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+    return jira
+        .getVersions(project)
+        .then((response) => console.log(response))
+        .catch((err) => console.log(`${err}`))
 }
 
 /**
@@ -68,15 +68,15 @@ function getVersions(project) {
  * @returns {String} A given jira key's corresponding project id
  */
 function getProjectIdByKey(key) {
-  return jira
-    .getProject(key.toUpperCase())
-    .then((response) => {
-      return response.id
-    })
-    .catch((err) => {
-      console.log(`${err}`)
-      return err
-    })
+    return jira
+        .getProject(key.toUpperCase())
+        .then((response) => {
+            return response.id
+        })
+        .catch((err) => {
+            console.log(`${err}`)
+            return err
+        })
 }
 
 /**
@@ -85,7 +85,7 @@ function getProjectIdByKey(key) {
  * @returns {Array} Parsed project name
  */
 function getProjectNameByTicket(ticket) {
-  return parseForWord(ticket)
+    return parseForWord(ticket)
 }
 
 /**
@@ -99,21 +99,21 @@ function getProjectNameByTicket(ticket) {
  * @returns {object} Success response || error & status code
  */
 async function createVersion(archived, releaseDate, name, description, projectId, released) {
-  const version = {
-    archived: archived || false,
-    releaseDate: releaseDate || today(),
-    name: name || 'Unnamed',
-    description: description || 'An excellent version',
-    projectId: projectId,
-    released: released || false,
-  }
+    const version = {
+        archived: archived || false,
+        releaseDate: releaseDate || today(),
+        name: name || 'Unnamed',
+        description: description || 'An excellent version',
+        projectId: projectId,
+        released: released || false,
+    }
 
-  console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${name} in project: ${JSON.stringify(version)}`)
+    console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${name} in project: ${JSON.stringify(version)}`)
 
-  return jira
-    .createVersion(version)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+    return jira
+        .createVersion(version)
+        .then((response) => console.log(response))
+        .catch((err) => console.log(`${err}`))
 }
 
 /**
@@ -123,17 +123,18 @@ async function createVersion(archived, releaseDate, name, description, projectId
  * @returns {object} Success response || error & status code
  */
 async function setIssueProperties(issueId, issueUpdate) {
-  const bodyData = typeof issueUpdate === 'string' ? issueUpdate : JSON.stringify(issueUpdate)
-  return await fetch(`https://${options.host}/rest/api/2/issue/${issueId}`, {
-    method: 'PUT',
-    headers: fetchHeader,
-    body: bodyData,
-  })
-    .then((response) => {
-      console.log(response)
-      return response
+
+    const bodyData = typeof issueUpdate === 'string' ? issueUpdate : JSON.stringify(issueUpdate)
+    return await fetch(`https://${options.host}/rest/api/2/issue/${issueId}`, {
+        method: 'PUT',
+        headers: fetchHeader,
+        body: bodyData,
     })
-    .catch((err) => console.log(err))
+        .then((response) => {
+            console.log(response)
+            return response
+        })
+        .catch((err) => console.log(err))
 }
 
 /**
@@ -142,15 +143,15 @@ async function setIssueProperties(issueId, issueUpdate) {
  * @returns {object} Success response || error & status code
  */
 async function getFixVersions(issueId) {
-  return await fetch(`https://${options.host}/rest/api/2/issue/${issueId}?fields=fixVersions`, {
-    method: 'GET',
-    headers: fetchHeader,
-  })
-    .then((response) => {
-      core.info(response)
-      return response
+    return await fetch(`https://${options.host}/rest/api/2/issue/${issueId}?fields=fixVersions`, {
+        method: 'GET',
+        headers: fetchHeader,
     })
-    .catch((err) => console.log(err))
+        .then((response) => {
+            core.info(response)
+            return response
+        })
+        .catch((err) => console.log(err))
 }
 
 /**
@@ -159,72 +160,72 @@ async function getFixVersions(issueId) {
  * @param {String} version Release version
  */
 function createVersionAndUpdateFixVersions(changelog, version) {
-  const tickets = parseChangelogForJiraTickets(changelog)
-  // Remove duplicate projects
-  const projects = [...new Set(getProjectNameByTicket(tickets))]
-  version = parseForVersion(version)
+    const tickets = parseChangelogForJiraTickets(changelog)
+    // Remove duplicate projects
+    const projects = [...new Set(getProjectNameByTicket(tickets))]
+    version = parseForVersion(version)
 
-  console.log('\x1b[32m%s\x1b[0m', `Projects are: ${projects}`)
-  console.log('\x1b[32m%s\x1b[0m', `Tickets are: ${tickets}`)
+    console.log('\x1b[32m%s\x1b[0m', `Projects are: ${projects}`)
+    console.log('\x1b[32m%s\x1b[0m', `Tickets are: ${tickets}`)
 
-  try {
-    // Create a jira version for each project
-    projects.forEach(async (project) => {
-      console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${version} in project: ${project}`)
+    try {
+        // Create a jira version for each project
+        projects.forEach(async (project) => {
+            console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${version} in project: ${project}`)
 
-      var projectId = await getProjectIdByKey(project)
+            var projectId = await getProjectIdByKey(project)
 
-      // Adding a hyperlink to version/release repo isn't supported, see https://community.atlassian.com/t5/Jira-discussions/Adding-a-confluence-link-in-a-Release-Version-description-field/td-p/622193
-      await createVersion(false, today(), version, `Auto-generated by ${packageName}`, projectId, false)
+            // Adding a hyperlink to version/release repo isn't supported, see https://community.atlassian.com/t5/Jira-discussions/Adding-a-confluence-link-in-a-Release-Version-description-field/td-p/622193
+            await createVersion(false, today(), version, `Auto-generated by ${packageName}`, projectId, false)
 
-      // Set the fix version for each Jira ticket, linking it the jira version
-      //const issueProperties = `{"update":{"fixVersions":[{"set":[{"name":"${version}"}]}]}}`
-      for (const ticket of tickets) {
-        // console.log('\x1b[32m%s\x1b[0m', `Attempting to set fix version: ${version} for ticket: ${ticket}`)
-        // await setIssueProperties(ticket, JSON.parse(issueProperties))
-        const response = await getFixVersions(ticket)
-        const json = await response.json()
-        console.log('\x1b[32m%s\x1b[0m', `json: ${JSON.stringify(json)}`)
-        // const json = await response.json()
-        if (json.fields && json.fields.fixVersions) {
-          const currentFixVersions = json.fields.fixVersions
-          let fixVersions = []
-          let versionExists = false
-          currentFixVersions.every((v) => {
-            if (v.name !== version) {
-              fixVersions.push({ name: v.name })
-            } else {
-              versionExists = true
+            // Set the fix version for each Jira ticket, linking it the jira version
+            //const issueProperties = `{"update":{"fixVersions":[{"set":[{"name":"${version}"}]}]}}`
+            for (const ticket of tickets) {
+                // console.log('\x1b[32m%s\x1b[0m', `Attempting to set fix version: ${version} for ticket: ${ticket}`)
+                // await setIssueProperties(ticket, JSON.parse(issueProperties))
+                const response = await getFixVersions(ticket)
+                const json = await response.json()
+                console.log('\x1b[32m%s\x1b[0m', `json: ${JSON.stringify(json)}`)
+                // const json = await response.json()
+                if (json.fields && json.fields.fixVersions) {
+                    const currentFixVersions = json.fields.fixVersions
+                    let fixVersions = []
+                    let versionExists = false
+                    currentFixVersions.every((v) => {
+                        if (v.name !== version) {
+                            fixVersions.push({name: v.name})
+                        } else {
+                            versionExists = true
+                        }
+                        return !versionExists
+                    })
+                    if (!versionExists) {
+                        fixVersions.push({name: version})
+                        let issueProperties = `{"update":{"fixVersions":[{"set":${JSON.stringify(fixVersions)}}]}}`
+                        console.log(
+                            '\x1b[32m%s\x1b[0m',
+                            `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
+                        )
+                        // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
+                        await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), {retries: 2})
+                    }
+                } else {
+                    console.log('\x1b[32m%s\x1b[0m', `No fixVersions found for ticket: ${ticket}`)
+                }
             }
-            return !versionExists
-          })
-          if (!versionExists) {
-            fixVersions.push({ name: version })
-            let issueProperties = `{"update":{"fixVersions":[{"set":${JSON.stringify(fixVersions)}}]}}`
-            console.log(
-              '\x1b[32m%s\x1b[0m',
-              `Attempting to set issue properties: ${issueProperties} for ticket: ${ticket}`
-            )
-            // sometime jira api fails to update the fix version due to "too many request" error, so we retry it
-            await pRetry(() => setIssueProperties(ticket, JSON.parse(issueProperties)), { retries: 2 })
-          }
-        } else {
-          console.log('\x1b[32m%s\x1b[0m', `No fixVersions found for ticket: ${ticket}`)
-        }
-      }
-    })
-  } catch (err) {
-    console.log(err)
-  }
+        })
+    } catch (err) {
+        console.log(err)
+    }
 }
 
 module.exports = {
-  getIssue,
-  getVersion,
-  getVersions,
-  createVersion,
-  setIssueProperties,
-  createVersionAndUpdateFixVersions,
-  getProjectNameByTicket,
-  getProjectIdByKey,
+    getIssue,
+    getVersion,
+    getVersions,
+    createVersion,
+    setIssueProperties,
+    createVersionAndUpdateFixVersions,
+    getProjectNameByTicket,
+    getProjectIdByKey,
 }
