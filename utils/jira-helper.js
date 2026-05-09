@@ -8,18 +8,18 @@ const jiraHost = core.getInput('jiraHost') || process.env.JIRA_HOST
  * @returns {string[]} Jira tickets parsed from the changelog (duplicates removed)
  */
 function parseChangelogForJiraTickets(changelog) {
-    let tickets
+  let tickets
 
-    try {
-        const regex = /([A-Za-z0-9]+-\d+)(?=`)/g
-        tickets = [...String(changelog).matchAll(regex)]
-    } catch (error) {
-        core.setFailed(error.message)
-        return []
-    }
+  try {
+    const regex = /([A-Za-z0-9]+-\d+)(?=`)/g
+    tickets = [...String(changelog).matchAll(regex)]
+  } catch (error) {
+    core.setFailed(error.message)
+    return []
+  }
 
-    const duplicates = tickets.map((m) => m[0])
-    return [...new Set(duplicates)]
+  const duplicates = tickets.map((m) => m[0])
+  return [...new Set(duplicates)]
 }
 
 /**
@@ -28,17 +28,17 @@ function parseChangelogForJiraTickets(changelog) {
  * @returns {string[]} Parsed word(s)
  */
 function parseForWord(str) {
-    const regex = /\b[^\d\W]+\b/gm
-    const parsedWords = []
-    let m
-    while ((m = regex.exec(str)) !== null) {
-        if (m.index === regex.lastIndex) {
-            regex.lastIndex++
-        }
-        // m[0] is the matched word
-        parsedWords.push(m[0])
+  const regex = /\b[^\d\W]+\b/gm
+  const parsedWords = []
+  let m
+  while ((m = regex.exec(str)) !== null) {
+    if (m.index === regex.lastIndex) {
+      regex.lastIndex++
     }
-    return parsedWords
+    // m[0] is the matched word
+    parsedWords.push(m[0])
+  }
+  return parsedWords
 }
 
 /**
@@ -47,16 +47,16 @@ function parseForWord(str) {
  * @returns {string} Parsed version (full match) or empty string if none
  */
 function parseForVersion(str) {
-    try {
-        // semantic version regex from https://semver.org ... prefixed with "v"
-        const regex =
-            /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/g
-        const match = regex.exec(str)
-        return match ? match[0] : ''
-    } catch (error) {
-        core.setFailed(error.message)
-        return ''
-    }
+  try {
+    // semantic version regex from https://semver.org ... prefixed with "v"
+    const regex =
+      /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/g
+    const match = regex.exec(str)
+    return match ? match[0] : ''
+  } catch (error) {
+    core.setFailed(error.message)
+    return ''
+  }
 }
 
 /**
@@ -64,14 +64,14 @@ function parseForVersion(str) {
  * @returns {String} Todays date in yyyy-mm-dd format
  */
 function today() {
-    return new Date().toISOString().slice(0, 10)
+  return new Date().toISOString().slice(0, 10)
 }
 
 module.exports = {
-    jiraHost,
-    parseChangelogForJiraTickets,
-    parseForWord,
-    parseForVersion,
-    today,
-    packageName,
+  jiraHost,
+  parseChangelogForJiraTickets,
+  parseForWord,
+  parseForVersion,
+  today,
+  packageName,
 }
