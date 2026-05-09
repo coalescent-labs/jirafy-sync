@@ -2,7 +2,7 @@
 >
 > This is a fork of [onXmaps/jirafy-sync](https://github.com/onXmaps/jirafy-sync) with the following changes:
 >
-> * Upgrade action to Node 20
+> * Upgrade action to Node 24
 > * Upgrade some dependencies
 > * Full support for semantic versioning
 > * Add a Jira version to Fix Version without overwriting existing Fix Versions
