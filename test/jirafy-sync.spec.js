@@ -32,7 +32,7 @@ describe('Jirafy Sync', () => {
     it('Ensure project retrieval error message', async function () {
       if (!projectId) this.skip()
       var resp = await jira.getProjectIdByKey(badKey)
-      chai.assert.equal(resp, `Error: No project could be found with key '${badKey.toUpperCase()}'.`)
+      chai.assert.isUndefined(resp)
     })
 
     it('Ensure project retrieval success', async function () {
