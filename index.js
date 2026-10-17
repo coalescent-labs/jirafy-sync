@@ -17,7 +17,11 @@ async function run() {
             core.setFailed('jiraVersion property is required. Try setting the value to ${{ github.event.release.tag_name }}')
         }
 
-        if (!!jiraVersion && regexp.test(jiraVersion)) {
+        if (!changelog || !jiraVersion) {
+            return
+        }
+
+        if (regexp.test(jiraVersion)) {
             await syncChangelogToJira(changelog, jiraVersion)
         } else {
             core.setFailed('Branch names must contain only numbers, strings, underscores, periods, and dashes.')
@@ -32,15 +36,13 @@ async function syncChangelogToJira(changelog, jiraVersion) {
         core.info(`jiraVersion is: ${jiraVersion}`)
         core.info(`changelog is: ${changelog}`)
 
-        createVersionAndUpdateFixVersions(changelog, jiraVersion)
+        const failed = await createVersionAndUpdateFixVersions(changelog, jiraVersion)
+        if (failed.length) {
+            core.setFailed(`Jirafy Sync could not update: ${failed.join(', ')}`)
+        }
     } catch (err) {
         core.setFailed(`Jirafy Sync failed: ${err.message}`)
-        process.exit(0)
     }
 }
 
-try {
-    run()
-} catch (error) {
-    core.setFailed(error.message)
-}
+run()

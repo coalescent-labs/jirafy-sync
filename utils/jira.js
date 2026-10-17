@@ -1,7 +1,5 @@
-const JiraClient = require('jira-client')
 const _pRetry = require('p-retry')
 const pRetry = typeof _pRetry === 'function' ? _pRetry : _pRetry?.default
-const fetch = require('node-fetch')
 const core = require('@actions/core')
 const { parseChangelogForJiraTickets } = require('./jira-helper')
 const { jiraHost, packageName, today, parseForWord, parseForVersion } = require('./jira-helper')
@@ -12,15 +10,6 @@ const options = {
   host: jiraHost,
 }
 
-const jira = new JiraClient({
-  protocol: 'https',
-  host: options.host,
-  username: options.username,
-  password: options.token,
-  apiVersion: '2',
-  strictSSL: false,
-})
-
 const fetchHeader = {
   Authorization: `Basic ${Buffer.from(`${options.username}:${options.token}`).toString('base64')}`,
   Accept: 'application/json',
@@ -28,55 +17,78 @@ const fetchHeader = {
 }
 
 /**
+ * Calls the Jira REST API v2 (native fetch, TLS verified)
+ * @param {String} method HTTP method
+ * @param {String} path Path below /rest/api/2 (i.e /project/ABC)
+ * @param {Object} [body] JSON body
+ * @returns {Promise<object|null>} Parsed JSON, or null on an empty response; throws with .status on non-OK
+ */
+async function jiraRequest(method, path, body) {
+  const res = await fetch(`https://${options.host}/rest/api/2${path}`, {
+    method,
+    headers: fetchHeader,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    const err = new Error(`Jira ${method} ${path} failed: ${res.status} ${res.statusText} ${text}`)
+    err.status = res.status
+    throw err
+  }
+  const text = await res.text()
+  return text ? JSON.parse(text) : null
+}
+
+/**
+ * Retries transient failures only: network errors, 429 and 5xx
+ * @param {Function} fn
+ * @returns {Promise<*>}
+ */
+function withRetry(fn) {
+  return pRetry(fn, {
+    retries: 2,
+    shouldRetry: (err) => err.status === undefined || err.status === 429 || err.status >= 500,
+  })
+}
+
+/**
  * Get Jira Issue
  * @param {String} issueNumber
- * @returns {Promise<object>} Resolves with the issue object (or logs error)
+ * @returns {Promise<object>} The issue object
  */
 function getIssue(issueNumber) {
-  return jira
-    .findIssue(issueNumber)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+  return jiraRequest('GET', `/issue/${encodeURIComponent(issueNumber)}`)
 }
 
 /**
  * Get Jira version
- * @param {String} version
- * @returns {Promise<object>} Resolves with the version object (or logs error)
+ * @param {String} version Version id
+ * @returns {Promise<object>} The version object
  */
 function getVersion(version) {
-  return jira
-    .getVersion(version)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+  return jiraRequest('GET', `/version/${encodeURIComponent(version)}`)
 }
 
 /**
  * Get Jira release versions
- * @param {String} project
- * @returns {Promise<object>} Resolves with the version object (or logs error)
+ * @param {String} project Project key or id
+ * @returns {Promise<object[]>} The project versions
  */
 function getVersions(project) {
-  return jira
-    .getVersions(project)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+  return jiraRequest('GET', `/project/${encodeURIComponent(project)}/versions`)
 }
 
 /**
  * Get a project Id by Project Key
  * @param {String} key Jira Project Key (i.e JIRAFY)
- * @returns {Promise<string>} A Promise that resolves to the project's id
+ * @returns {Promise<string|undefined>} The project's id, undefined when the project cannot be resolved
  */
 function getProjectIdByKey(key) {
-  return jira
-    .getProject(key.toUpperCase())
-    .then((response) => {
-      return response.id
-    })
+  return withRetry(() => jiraRequest('GET', `/project/${encodeURIComponent(key.toUpperCase())}`))
+    .then((response) => response.id)
     .catch((err) => {
-      console.log(`${err}`)
-      return err
+      core.warning(`Could not resolve Jira project ${key}: ${err.message}`)
+      return undefined
     })
 }
 
@@ -90,14 +102,14 @@ function getProjectNameByTicket(ticket) {
 }
 
 /**
- * Creates a release version
+ * Creates a release version. An already existing version is not an error.
  * @param {Boolean} archived
  * @param {String} releaseDate
  * @param {String} name
  * @param {String} description
  * @param {String} projectId
  * @param {Boolean} released
- * @returns {object} Success response || error & status code
+ * @returns {Promise<object|undefined>} The created version, undefined when it already exists
  */
 async function createVersion(archived, releaseDate, name, description, projectId, released) {
   const version = {
@@ -109,120 +121,98 @@ async function createVersion(archived, releaseDate, name, description, projectId
     released: released || false,
   }
 
-  console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${name} in project: ${JSON.stringify(version)}`)
+  core.info(`Attempting to create Jira version: ${JSON.stringify(version)}`)
 
-  return jira
-    .createVersion(version)
-    .then((response) => console.log(response))
-    .catch((err) => console.log(`${err}`))
+  try {
+    return await withRetry(() => jiraRequest('POST', '/version', version))
+  } catch (err) {
+    if (err.status === 400 && /already exists/i.test(err.message)) {
+      core.info(`Jira version ${version.name} already exists in project ${projectId}`)
+      return undefined
+    }
+    throw err
+  }
 }
 
 /**
  * Set Jira issue properties
  * @param {string} issueId
- * @param {Object|string} issueUpdate - A plain object that will be JSON.stringified, or a prebuilt JSON string
- * @returns {Promise<Response>} The fetch Response; throws on non-OK status
+ * @param {Object|string} issueUpdate - A plain object, or a prebuilt JSON string
+ * @returns {Promise<null>} Resolves on success; throws on non-OK status
  */
-async function setIssueProperties(issueId, issueUpdate) {
-  const bodyData = typeof issueUpdate === 'string' ? issueUpdate : JSON.stringify(issueUpdate)
-  return await fetch(`https://${options.host}/rest/api/2/issue/${issueId}`, {
-    method: 'PUT',
-    headers: fetchHeader,
-    body: bodyData,
-  })
-    .then(async (response) => {
-      console.log(`setIssueProperties -> ${response.status} ${response.statusText} ${response.url}`)
-      if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        const err = new Error(`Jira update failed: ${response.status} ${response.statusText} ${text}`)
-        err.status = response.status
-        throw err
-      }
-      return response
-    })
-    .catch((err) => {
-      console.log(err)
-      throw err
-    })
+function setIssueProperties(issueId, issueUpdate) {
+  const body = typeof issueUpdate === 'string' ? JSON.parse(issueUpdate) : issueUpdate
+  return withRetry(() => jiraRequest('PUT', `/issue/${encodeURIComponent(issueId)}`, body))
 }
 
 /**
- * Get only fixVersions of an issue and return parsed JSON
+ * Get only fixVersions of an issue
  * @param {string} issueId
  * @returns {Promise<{fields?: {fixVersions?: Array<{name: string}>}}>}
  */
-async function getFixVersions(issueId) {
-  const res = await fetch(`https://${options.host}/rest/api/2/issue/${issueId}?fields=fixVersions`, {
-    method: 'GET',
-    headers: fetchHeader,
-  })
-  console.log(`getFixVersions -> ${res.status} ${res.statusText} ${res.url}`)
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    const err = new Error(`Jira get fixVersions failed: ${res.status} ${res.statusText} ${text}`)
-    err.status = res.status
-    throw err
-  }
-  return res.json()
+function getFixVersions(issueId) {
+  return withRetry(() => jiraRequest('GET', `/issue/${encodeURIComponent(issueId)}?fields=fixVersions`))
 }
 
 /**
- *
+ * Adds the version to a ticket's fixVersions, keeping the existing ones
+ * @param {String} ticket
+ * @param {String} version
+ */
+async function addFixVersion(ticket, version) {
+  const json = await getFixVersions(ticket)
+  const currentFixVersions = (json && json.fields && json.fields.fixVersions) || []
+  if (currentFixVersions.some((v) => v.name === version)) {
+    core.info(`${ticket} already has fix version ${version}`)
+    return
+  }
+  const fixVersions = [...currentFixVersions.map((v) => ({ name: v.name })), { name: version }]
+  core.info(`Setting fix versions ${JSON.stringify(fixVersions)} on ${ticket}`)
+  await setIssueProperties(ticket, { fields: { fixVersions } })
+}
+
+/**
+ * Creates the version in every referenced project and adds it to the fixVersions of that project's tickets.
+ * Unknown projects (i.e CVE-2026 taken for a ticket) and missing tickets are skipped with a warning.
  * @param {String} changelog Changelog
  * @param {String} version Release version
+ * @returns {Promise<String[]>} Tickets that could not be updated because of an unexpected error
  */
-function createVersionAndUpdateFixVersions(changelog, version) {
+async function createVersionAndUpdateFixVersions(changelog, version) {
   const tickets = parseChangelogForJiraTickets(changelog)
-  const projects = [...new Set(tickets.flatMap((t) => getProjectNameByTicket(t)).filter(Boolean))]
+  const projectOf = (ticket) => ticket.slice(0, ticket.lastIndexOf('-')).toUpperCase()
+  const projects = [...new Set(tickets.map(projectOf).filter(Boolean))]
   version = parseForVersion(version)
+  if (!version) {
+    throw new Error('jiraVersion is not a valid version (expected vX.Y.Z)')
+  }
 
-  console.log('\x1b[32m%s\x1b[0m', `Projects are: ${projects}`)
-  console.log('\x1b[32m%s\x1b[0m', `Tickets are: ${tickets}`)
+  core.info(`Projects are: ${projects}`)
+  core.info(`Tickets are: ${tickets}`)
 
-  try {
-    projects.forEach(async (project) => {
-      console.log('\x1b[32m%s\x1b[0m', `Attempting to create Jira version: ${version} in project: ${project}`)
+  const failed = []
+  for (const project of projects) {
+    const projectId = await getProjectIdByKey(project)
+    if (!projectId) {
+      core.warning(`Skipping project ${project}: not a Jira project`)
+      continue
+    }
+    await createVersion(false, today(), version, `Auto-generated by ${packageName}`, projectId, false)
 
-      const projectId = await getProjectIdByKey(project)
-      if (!projectId || typeof projectId !== 'string') {
-        console.log('\x1b[31m%s\x1b[0m', `Could not resolve project id for key: ${project}. Skipping.`)
-        return
-      }
-      await createVersion(false, today(), version, `Auto-generated by ${packageName}`, projectId, false)
-
-      for (const ticket of tickets) {
-        const json = await getFixVersions(ticket)
-        console.log('\x1b[32m%s\x1b[0m', `json: ${JSON.stringify(json)}`)
-        if (json.fields && json.fields.fixVersions) {
-          const currentFixVersions = json.fields.fixVersions
-          let fixVersions = []
-          let versionExists = false
-          currentFixVersions.every((v) => {
-            if (v.name !== version) {
-              fixVersions.push({ name: v.name })
-            } else {
-              versionExists = true
-            }
-            return !versionExists
-          })
-          if (!versionExists) {
-            fixVersions.push({ name: version })
-            // Prefer fields payload for broader compatibility
-            const issueProperties = { fields: { fixVersions } }
-            console.log(
-              '\x1b[32m%s\x1b[0m',
-              `Attempting to set issue properties: ${JSON.stringify(issueProperties)} for ticket: ${ticket}`
-            )
-            await pRetry(() => setIssueProperties(ticket, issueProperties), { retries: 2 })
-          }
+    for (const ticket of tickets.filter((t) => projectOf(t) === project)) {
+      try {
+        await addFixVersion(ticket, version)
+      } catch (err) {
+        if (err.status === 404) {
+          core.warning(`Skipping ${ticket}: issue not found or not visible`)
         } else {
-          console.log('\x1b[32m%s\x1b[0m', `No fixVersions found for ticket: ${ticket}`)
+          core.error(`Could not update ${ticket}: ${err.message}`)
+          failed.push(ticket)
         }
       }
-    })
-  } catch (err) {
-    console.log(err)
+    }
   }
+  return failed
 }
 
 module.exports = {
