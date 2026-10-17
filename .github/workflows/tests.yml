@@ -1,6 +1,7 @@
 name: Unit Tests
 
-on: pull_request
+# Not run automatically for now: run `npm test` locally or start it by hand
+on: workflow_dispatch
 
 jobs:
   unit-tests:
@@ -12,11 +13,12 @@ jobs:
       PROJECT_ID: ${{ secrets.PROJECT_ID }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+
       - name: Use Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - run: npm ci

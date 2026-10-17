@@ -1,44 +1,47 @@
 name: Jirafy Sync
+
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
-      - 'v*' # Push events to matching v*, i.e. v1.0, v1.0.0
+      - 'v*.*.*' # i.e. v1.0.0; not the moving major tag (v1)
+      - '!v*-*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The repo has tags but no prior GitHub release to diff from
+      - name: Previous tag
+        id: previous
+        run: echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' --exclude '*-*' "${{ github.sha }}^")" >> "$GITHUB_OUTPUT"
 
       - name: Jirafy Changelog
         id: changelog
         uses: coalescent-labs/jirafy-changelog@v4
         with:
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
           jiraHost: ${{ secrets.JIRA_HOST }}
-          myToken: ${{ secrets.GITHUB_TOKEN }}
+          head-ref: ${{ github.ref_name }}
+          base-ref: ${{ steps.previous.outputs.tag }}
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
 
-      - name: Setup node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-
-      - run: npm install --production
-
-      # Sync the changelog with Jira projects / Tickets
       - name: Jirafy Sync
         uses: ./
         with:
@@ -47,3 +50,10 @@ jobs:
           jiraHost: ${{ secrets.JIRA_HOST }}
           jiraUsername: ${{ secrets.JIRA_USERNAME }}
           jiraToken: ${{ secrets.JIRA_TOKEN }}
+
+      # Consumers use the major tag (i.e. @v4): point it at this release
+      - name: Move the major tag
+        run: |
+          major="${GITHUB_REF_NAME%%.*}"
+          git tag -f "$major" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$major"
